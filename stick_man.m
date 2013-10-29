@@ -53,34 +53,34 @@ for cur_frame=0:total_frame
         stick_dynamics(phi, vel_stick_rotation, arm_rot, STICK_LEN, ARM_RATIOS, STICK_RATIOS, theta, stick_ends);
 
            
-%change to world frame
-world_stick_ends = phi_rot*stick_ends + repmat(translation_s_w,1,no_arms);
-world_arm_starts = phi_rot*arm_starts + repmat(translation_s_w,1,no_arms);
-world_arm_ends = phi_rot*arm_ends + repmat(translation_s_w,1,no_arms);
+    %change to world frame
+    world_stick_ends = phi_rot*stick_ends + repmat(translation_s_w,1,no_arms);
+    world_arm_starts = phi_rot*arm_starts + repmat(translation_s_w,1,no_arms);
+    world_arm_ends = phi_rot*arm_ends + repmat(translation_s_w,1,no_arms);
 
     
-%draw - orthographic projection
-clf
-figure(2)
-xlim([-3 3]);
-ylim([-1 7]);
-line([world_stick_ends(1,1);world_stick_ends(1,2)],...
-       [world_stick_ends(3,1);world_stick_ends(3,2)]);
-   color_name=[];
-   for i=1:no_arms
-    hold on
-    if mod(i,2)
+    %draw - orthographic projection
+    clf
+    figure(2)
+    xlim([-3 3]);
+    ylim([-1 7]);
+    line([world_stick_ends(1,1);world_stick_ends(1,2)],...
+          [world_stick_ends(3,1);world_stick_ends(3,2)]);
+    color_name=[];
+    for i=1:no_arms
+        hold on
+        if mod(i,2)
         color_name='r';
-    else
+        else
         color_name='g';
-    end
+        end
     
-    line([[world_arm_starts(1,i)]'; [world_arm_ends(1,i)]'], ...
-        [[world_arm_starts(3,i)]'; [world_arm_ends(3,i)]'], 'Color', color_name);
+        line([[world_arm_starts(1,i)]'; [world_arm_ends(1,i)]'], ...
+            [[world_arm_starts(3,i)]'; [world_arm_ends(3,i)]'], 'Color', color_name);
     
-   end
-   
-   pause(0.3)   
+    end   
+    pause(0.3)   
+    
 end
 
 %only care about the image of these 3d homogenous points
