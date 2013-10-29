@@ -1,4 +1,4 @@
-%%  Simulate the physical system -- Stickman
+%%  Simulate the -- Stickman
 clear
 close all
 
@@ -10,8 +10,8 @@ STICK_LEN = 5; %length in axis of rotation
 STICK_RATIOS = [.5, .5]; ARM_RATIOS =[ .2, .2]; % ratio to len (arms-intersection, armr, arml)
 
 %Occlusion caused by following - scaled by distance from camera
-OCCLUDE_RADIUS = 0.1; %Only for the ends
-OCCLUDE_WIDTH = 0; %For the arms and the stick - considering cylinder
+OCCLUDE_RADIUS = 0.000; %Only for the ends
+OCCLUDE_WIDTH = 0.0; %For the arms and the stick - considering cylinder
 
 start_arms_angles = [45, -45]; %degrees
 
@@ -21,6 +21,36 @@ arm_rot = [0 5; 0 5]; %(mean,std) gauss to sample rotation speed
 no_arms = 2; %number of arms
 
 translation_s_w = [0 -5 0]'; %translation from stick origin to world in world coor
+
+%Camera-1 constants
+f1 = 0.005;
+camera1_mat = [f1 0 0 0;
+              0 f1 0 0;
+              0 0 1 0];
+%about x-axis
+camera1_rot  = [1    0       0
+               0 cosd(90) -sind(90)
+               0 sind(90)  cosd(90)];           
+                                                    
+cam1_to_world = [0 0 0]';
+
+
+%Camera-2 constants
+f2 = 0.005;
+camera2_mat = [f2 0 0 0;
+              0 f2 0 0;
+              0 0 1 0];
+           
+%about y-axis and z
+camera2_rot  = [cosd(90) sind(90) 0;
+              -sind(90) cosd(90) 0;
+               0         0       1] * ...
+              [cosd(90)     0          -sind(90)
+               0            1           0
+               sind(90)     0           cosd(90)];
+                        
+cam2_to_world = [5 -3 5]';
+
 
 
 % points that are projected are two ends of the stick
@@ -45,7 +75,8 @@ end
 lengths = STICK_LEN * [1; STICK_RATIOS(1); ARM_RATIOS(1)];
 chosen_cam = 1;
 
-total_frame=10;
+total_frame=100;
+
 %start STICK-MAN dynamics
 for cur_frame=0:total_frame
    
@@ -59,9 +90,29 @@ for cur_frame=0:total_frame
     world_arm_ends = phi_rot*arm_ends + repmat(translation_s_w,1,no_arms);
 
     
+    %camera views
+    
+    %only care about the image of these 3d homogenous points
+    care_points = [world_stick_ends world_arm_ends;...
+                   ones(1,size(world_stick_ends,2)+...
+                   size(world_arm_ends,2))];
+
+    [camera1_view, intersect1] = image_from_3d( f1, camera1_rot, cam1_to_world, care_points,...
+                            OCCLUDE_RADIUS, OCCLUDE_WIDTH, [world_arm_starts(:,1);1] );
+
+    
+    [camera2_view, intersect2] = image_from_3d( f2, camera2_rot, cam2_to_world, care_points,...
+                            OCCLUDE_RADIUS, OCCLUDE_WIDTH, [world_arm_starts(:,1);1] );
+                
+                        
+    %Camera visualizations - Nice!
+
     %draw - orthographic projection
+    figure(1)    
     clf
-    figure(2)
+    
+    subplot(3,1,1)
+    
     xlim([-3 3]);
     ylim([-1 7]);
     line([world_stick_ends(1,1);world_stick_ends(1,2)],...
@@ -79,69 +130,54 @@ for cur_frame=0:total_frame
             [[world_arm_starts(3,i)]'; [world_arm_ends(3,i)]'], 'Color', color_name);
     
     end   
-    pause(0.3)   
+    
+    %draw camera view
+    subplot(3,1,2)
+
+    xlim([-.0035 .0035]);
+    ylim([-.001 .006]);
+    %stick
+    if (sum(isinf(camera1_view(:,1:2)))<1)
+        line([camera1_view(1,1);camera1_view(1,2)], ...
+            [camera1_view(2,1);camera1_view(2,2)], 'Color', 'k');
+    end
+    hold on
+    %arms
+    if (sum(isinf(camera1_view(:,3)))<1)
+        line([camera1_view(1,3); intersect1(1)],...
+             [camera1_view(2,3); intersect1(2)], 'Color', 'r');
+    end
+    if (sum(isinf(camera1_view(:,4)))<1)
+        line([camera1_view(1,4); intersect1(1)],...
+             [camera1_view(2,4); intersect1(2)], 'Color', 'g');         
+    end
+    plot(camera1_view(1,:), camera1_view(2,:), '.b');
+    
+    
+    subplot(3,1,3)
+    xlim([-.0035 .0035]);
+    ylim([-.0035 .0035]);
+    %stick
+    if (sum(isinf(camera2_view(:,1:2)))<1)
+        line([camera2_view(1,1);camera2_view(1,2)], ...
+            [camera2_view(2,1);camera2_view(2,2)], 'Color', 'k');
+    end
+    hold on
+    %arms
+    if(sum(isinf(camera2_view(:,3)))<1)
+        line([camera2_view(1,3); intersect2(1)],...
+             [camera2_view(2,3); intersect2(2)], 'Color', 'r');
+    end
+    if(sum(isinf(camera2_view(:,4)))<1)
+        line([camera2_view(1,4); intersect2(1)],...
+             [camera2_view(2,4); intersect2(2)], 'Color', 'g');         
+    end
+    plot(camera2_view(1,:), camera2_view(2,:), '.b');
+
+    pause(.31)   
+    
     
 end
-
-%only care about the image of these 3d homogenous points
-care_points = [world_stick_ends world_arm_ends;...
-               ones(1,size(world_stick_ends,2)+...
-               size(world_arm_ends,2))];
-
-
-
-%% Camera1 projection - pinhole
-f1 = 0.005;
-camera1_mat = [f1 0 0 0;
-              0 f1 0 0;
-              0 0 1 0];
-%about x-axis
-camera1_rot  = [1    0       0
-               0 cosd(90) -sind(90)
-               0 sind(90)  cosd(90)];           
-                                                    
-cam1_to_world = [0 0 0]';
-
-transform_cam1_frame = [[camera1_rot; zeros(1,3)] [cam1_to_world; 1]];
-
-%project point to camera space
-point_cam1_3d = transform_cam1_frame * care_points;
-project_mat_cam1 = camera1_mat * eye(size(transform_cam1_frame));
-point_cam1_2d = camera_project(point_cam1_3d, project_mat_cam1, OCCLUDE_RADIUS);
-
-%display view
-figure, scatter(point_cam1_2d(1,:), point_cam1_2d(2,:));
-
-%% Camera projection2 - pinhole
-f2 = 0.005;
-camera2_mat = [f2 0 0 0;
-              0 f2 0 0;
-              0 0 1 0];
-           
-%about y-axis and z
-camera2_rot  = [cosd(90) sind(90) 0;
-              -sind(90) cosd(90) 0;
-               0         0       1] * ...
-              [cosd(90)     0          -sind(90)
-               0            1           0
-               sind(90)     0           cosd(90)];
-                        
-cam2_to_world = [5 -3 5]';
-
-%care about points
-% care_points = [world_stick_ends world_arm_starts world_arm_ends;...
-%                 ones(1,size(world_stick_ends,2)+...
-%                 size(world_arm_ends,2)+size(world_arm_starts,2))];
-
-transform_cam2_frame = [[camera2_rot; zeros(1,3)] [cam2_to_world; 1]];
-
-%project point to camera space
-point_cam2_3d = transform_cam2_frame * care_points;
-project_mat_cam2 = camera2_mat * eye(size(transform_cam2_frame));
-point_cam2_2d = camera_project(point_cam2_3d, project_mat_cam2, OCCLUDE_RADIUS);
-
-%display view from camera
-figure, scatter(point_cam2_2d(1,:), point_cam2_2d(2,:));
 
 
 %% Tracking

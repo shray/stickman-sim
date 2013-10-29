@@ -1,4 +1,4 @@
-function [ image_pts ] = image_from_3d( f, camera_rot, camera_to_world, care_points, OCCLUDE_RADIUS, OCCLUDE_WIDTH, intersection_pt )
+function [ image_pts, debug_intersect ] = image_from_3d( f, camera_rot, camera_to_world, care_points, OCCLUDE_RADIUS, OCCLUDE_WIDTH, intersection_pt )
 %IMAGE_FROM_3D Project 3D points to image plane.
 % No pixel discretization
 % Takes care of occlusion problems
@@ -16,7 +16,7 @@ intersection_3d = transform_cam_frame * intersection_pt;
 %unhomogenized 3d points
 points_3d_nh = [point_cam_3d(1,:)./point_cam_3d(4,:); ...
     point_cam_3d(2,:)./point_cam_3d(4,:); point_cam_3d(3,:)./point_cam_3d(4,:)];
-intersection_3d = [intersection_3d(1); intersection_3d(2); intersection_3d(3)]./intersection_3d(4);
+intersection_3d_nh = [intersection_3d(1); intersection_3d(2); intersection_3d(3)]./intersection_3d(4);
 
 project_mat_cam = camera_mat * eye(size(transform_cam_frame));
  %= camera_project(point_cam_3d, project_mat_cam, OCCLUDE_RADIUS, OCCLUDE_WIDTH);
@@ -70,7 +70,7 @@ end
 for i=[1,2,4]
     if (sum(isinf(p_final(:,i)))<1)
         is_occluded = line_pt(point_2d(:,3),intersect_2d, point_2d(:,i), OCCLUDE_WIDTH,...
-            (points_3d_nh(3,3)+intersect_2d)/2, points_3d_nh(3,i));
+            (points_3d_nh(3,3)+intersection_3d_nh(3))/2, points_3d_nh(3,i));
         if (is_occluded)
             p_final(:,i) = [inf, inf]';
         end
@@ -83,12 +83,15 @@ end
 for i=[1,2,3]
     if (sum(isinf(p_final(:,i)))<1)
         is_occluded = line_pt(point_2d(:,4),intersect_2d, point_2d(:,i), OCCLUDE_WIDTH,...
-            (points_3d_nh(3,4)+intersect_2d)/2, points_3d_nh(3,i));
+            (points_3d_nh(3,4)+intersection_3d_nh(3))/2, points_3d_nh(3,i));
         if (is_occluded)
             p_final(:,i) = [inf, inf]';
         end
     end
 end
+
+image_pts = p_final;
+debug_intersect = intersect_2d;
 
 end
 
