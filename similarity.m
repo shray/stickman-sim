@@ -1,4 +1,4 @@
-function [ similarity_no ] = similarity( state, image, f, image_noise, OCCLUDE_RADIUS, OCCLUDE_WIDTH, STICK_LEN, STICK_RATIOS,ARM_RATIOS )
+function [ similarity_no ] = similarity( state, image, f, image_noise, OCCLUDE_RADIUS, OCCLUDE_WIDTH, STICK_LEN, STICK_RATIOS,ARM_RATIOS, camera_rot, camera_trans )
 % SIMILARITY - computes a similarity score between image derived from
 % state of stickman and the image observed.
 
@@ -42,17 +42,17 @@ for i = 1:no_arms
                         .* [cosd(90-theta(i)) 0 sind(90-theta(i))]';
 end         
 
-%change to camera frame
-cam_stick_ends = phi_rot*stick_ends + repmat(-[state(1);state(2);state(3)],1,no_arms);
-cam_arm_starts = phi_rot*arm_starts + repmat(-[state(1);state(2);state(3)],1,no_arms);
-cam_arm_ends = phi_rot*arm_ends + repmat(-[state(1);state(2);state(3)],1,no_arms);
+%change to world frame
+world_stick_ends = phi_rot*stick_ends + repmat([state(1);state(2);state(3)],1,no_arms);
+world_arm_starts = phi_rot*arm_starts + repmat([state(1);state(2);state(3)],1,no_arms);
+world_arm_ends = phi_rot*arm_ends + repmat([state(1);state(2);state(3)],1,no_arms);
 
-care_points = [cam_stick_ends cam_arm_ends;...
-                   ones(1,size(cam_stick_ends,2)+...
-                   size(cam_arm_ends,2))];
+care_points = [world_stick_ends world_arm_ends;...
+                   ones(1,size(world_stick_ends,2)+...
+                   size(world_arm_ends,2))];
 
-[camera_view, intersect1] = image_from_3d( f, eye(3), [0;0;0], care_points,...
-                                OCCLUDE_RADIUS, OCCLUDE_WIDTH, [cam_arm_starts(:,1);1] );
+[camera_view, intersect1] = image_from_3d( f, camera_rot, camera_trans, care_points,...
+                                OCCLUDE_RADIUS, OCCLUDE_WIDTH, [world_arm_starts(:,1);1] );
        
                             
 difference = camera_view-image;
