@@ -182,7 +182,22 @@ end
 
 %% Tracking
 
-% Sensor Selection acc to the paper
+%Trackers 1 & 2, particle filters on first and second camera views
+%state is (St-Endx, St-Endy, St-Endz, Phi, theta1, theta2, vel-phi)'
+%initialize part-filter
+t1_no_particles = 100;
+t1_prev_state = init_state();
+
+%for each particle
+t1_dyn_state = zeros(size(t1_prev_state));
+t1_dyn_state(4,:) = t1_prev_state(end,:);
+t1_dyn_state(5:6,:) = t1_theta_sigma .* randn(2,t1_no_particles);
+
+%find new weights for particles
+for i=1:t1_no_particles
+    t1_new_weights(i) = similarity(cur_particles(i,:), image_points);
+end
+
 
 if chosen_cam==1
     measure_pts = point_cam1_2d;

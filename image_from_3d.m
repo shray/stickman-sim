@@ -9,6 +9,7 @@ camera_mat = [f 0 0 0;
                                                     
 transform_cam_frame = [[camera_rot; zeros(1,3)] [camera_to_world; 1]];
 
+
 %project point to camera space
 point_cam_3d = transform_cam_frame * care_points;
 intersection_3d = transform_cam_frame * intersection_pt;
