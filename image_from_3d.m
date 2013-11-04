@@ -36,11 +36,11 @@ p_final = point_2d;
 for i=1:size(point_2d,2)-1
     for j=i+1:size(point_2d,2)
         %check if i falls in j's disk
-        if ((norm(point_2d(:,i)-point_2d(:,j)) <= OCCLUDE_RADIUS/points_3d_nh(3,j))...
+        if ((norm(point_2d(:,i)-point_2d(:,j)) <= f*OCCLUDE_RADIUS/points_3d_nh(3,j))...
                 && (points_3d_nh(3,i) > points_3d_nh(3,j)))
             p_final(:,i) = [inf, inf]';
         %check if j falls in i's disk
-        elseif ((norm(point_2d(:,i)-point_2d(:,j)) <= OCCLUDE_RADIUS/points_3d_nh(3,i))...
+        elseif ((norm(point_2d(:,i)-point_2d(:,j)) <= f*OCCLUDE_RADIUS/points_3d_nh(3,i))...
                 && (points_3d_nh(3,j) > points_3d_nh(3,i)))        
             p_final(:,j) = [inf, inf]';
         end
@@ -56,7 +56,7 @@ end
 %check if perpendicular of point on line-segment
 for i=3:size(point_2d,2)
     if (sum(isinf(p_final(:,i)))<1)
-        is_occluded = line_pt(point_2d(:,1),point_2d(:,2), point_2d(:,i), OCCLUDE_WIDTH,...
+        is_occluded = line_pt(point_2d(:,1),point_2d(:,2), point_2d(:,i), f*OCCLUDE_WIDTH,...
             (points_3d_nh(3,1)+points_3d_nh(3,1))/2, points_3d_nh(3,i));
         if (is_occluded)
             p_final(:,i) = [inf, inf]';
@@ -70,7 +70,7 @@ end
 %check if perpendicular of point on line-segment
 for i=[1,2,4]
     if (sum(isinf(p_final(:,i)))<1)
-        is_occluded = line_pt(point_2d(:,3),intersect_2d, point_2d(:,i), OCCLUDE_WIDTH,...
+        is_occluded = line_pt(point_2d(:,3),intersect_2d, point_2d(:,i), f*OCCLUDE_WIDTH,...
             (points_3d_nh(3,3)+intersection_3d_nh(3))/2, points_3d_nh(3,i));
         if (is_occluded)
             p_final(:,i) = [inf, inf]';
