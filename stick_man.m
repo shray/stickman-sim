@@ -57,7 +57,6 @@ camera2_noise_std = 1.;
 camera2_occl = [];
 
 
-
 % points that are projected are two ends of the stick
 % state of stick - apart from constants
 % assuming a coordinate axis with origin at end 1 and z direction pointing

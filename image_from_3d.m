@@ -71,7 +71,7 @@ end
 for i=[1,2,4]
     if (sum(isinf(p_final(:,i)))<1)
         is_occluded = line_pt(point_2d(:,3),intersect_2d, point_2d(:,i), f*OCCLUDE_WIDTH,...
-            (points_3d_nh(3,3)+intersection_3d_nh(3))/2, points_3d_nh(3,i));
+           (points_3d_nh(3,3)+intersection_3d_nh(3))/2, points_3d_nh(3,i));
         if (is_occluded)
             p_final(:,i) = [inf, inf]';
         end
