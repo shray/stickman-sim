@@ -111,6 +111,18 @@ t3_prev_state = t3_prev_state + .1*randn(size(t3_prev_state));
 t3_prev_weights = 1/t3_no_particles * ones(t3_no_particles,1);
 t3_new_weights = zeros(size(t3_prev_weights));
 
+%Tracker4 - Multiplexer
+t4_no_particles = 1000;
+t4_theta_sigma = 10;
+t4_prev_state = repmat([translation_s_w;phi;theta(1);theta(2);vel_stick_rotation(1)],1,t1_no_particles);
+t4_cam_choice = 1;
+
+%initialize state by adding gaussian noise
+t4_prev_state = t4_prev_state + .1*randn(size(t4_prev_state));
+t4_prev_weights = 1/t4_no_particles * ones(t4_no_particles,1);
+t4_new_weights = zeros(size(t4_prev_weights));
+t4_no_predicts  = 10;
+t4_no_measures = 3;
 total_frame=200;
 
 ground_truth=[];
@@ -120,6 +132,8 @@ t2_estimates=[];
 t2_error=[];
 t3_estimates=[];
 t3_error=[];
+t4_estimates=[];
+t4_error=[];
 
 t1_parz_guess = [];
 t1_parz_entrp = [];
@@ -127,7 +141,9 @@ t2_parz_guess = [];
 t2_parz_entrp = [];
 t3_parz_guess = [];
 t3_parz_entrp = [];
-
+t4_parz_guess = [];
+t4_parz_entrp = [];
+t4_cam_choices = [t4_cam_choice];
 
 %start STICK-MAN dynamics
 for cur_frame=0:total_frame
@@ -455,18 +471,167 @@ for cur_frame=0:total_frame
     t3_prev_state = t3_next_state;
     t3_prev_weights = t3_new_weights;
     
+    
+    %Traker4 - Intelligent Switching
+    %check if N-effective less than threshold
+    if cur_frame==13
+        'Oh'
+    end
+    t4_N_eff = 1/(t4_prev_weights'*t4_prev_weights);
+    if t4_N_eff < .2*t4_no_particles
+        [t4_prev_state, t4_prev_weights] = resample(t4_prev_state, t4_prev_weights);
+    end
+
+    %use dynamics to predict next
+    t4_dyn_state = zeros(size(t4_prev_state));
+    t4_dyn_state(4,:) = t4_prev_state(end,:);
+    t4_dyn_state(5:6,:) = t4_theta_sigma .* randn(2,t4_no_particles);    
+    
+    %predict next
+    t4_next_state = t4_prev_state + t4_dyn_state;
+    
+    %check angle ranges
+    t4_next_state(4,:) = mod(t4_next_state(4,:),360);
+    t4_next_state(5,find(t4_next_state(5,:)>179)) = 179;
+    t4_next_state(5,find(t4_next_state(5,:)<1)) = 1;
+    t4_next_state(6,find(t4_next_state(6,:)<-179)) = -179;
+    t4_next_state(6,find(t4_next_state(6,:)>-1)) = -1;
+    
+    %use chosen-camera
+    if (t4_cam_choice==1)
+        t4_cam_view = camera1_view;
+        t4_f = f1;
+        t4_cam_rot = camera1_rot;
+        t4_cam_to_world = cam1_to_world;
+    else        
+        t4_cam_view = camera2_view;
+        t4_f = f2;
+        t4_cam_rot = camera2_rot;
+        t4_cam_to_world = cam2_to_world;
+    end
+
+    %find new weights for particles by measurement
+    for i=1:t4_no_particles
+        t4_new_weights(i) = similarity(t4_next_state(:,i), t4_cam_view, t4_f, 16,...
+            OCCLUDE_RADIUS, OCCLUDE_WIDTH, STICK_LEN, STICK_RATIOS, ARM_RATIOS, t4_cam_rot, t4_cam_to_world);
+        if t4_new_weights(i)==0
+            'Zero?';
+        end
+    end
+    %renormalize
+    t4_new_weights = t4_new_weights./sum(t4_new_weights);
+    %compute best theta estimate
+    t4_angle_estimate = t4_next_state(5,:)*t4_new_weights - t4_next_state(6,:)*t4_new_weights;
+    
+    %debug
+    if (isnan(t4_angle_estimate))
+        t4_new_weights = t4_prev_weights;
+        t4_angle_estimate = t4_next_state(5,:)*t4_new_weights - t4_next_state(6,:)*t4_new_weights;
+
+    end
+    
+    %parzen-window estimate
+    t4_theta_diff = t4_next_state(5,:) - t4_next_state(6,:);
+    [t4_td_est, t4_td_dist] = p_win(t4_theta_diff', t4_new_weights, 50, 0, 360);
+    %normalize
+    t4_td_dist = t4_td_dist./sum(t4_td_dist);
+    t4_td_conv = imfilter(t4_td_dist, ones(101,1));
+    [t4_maxp, max_idx] = max(t4_td_conv);
+    max_idx = max(max_idx-50,1):min(max_idx+50,numel(t4_td_dist));
+    %Angle guess from density
+    t4_td_guess = sum(t4_td_dist(max_idx).*t4_td_est(max_idx))/sum(t4_td_dist(max_idx));
+    %Entropy Calculation
+    t4_td_log = log(t4_td_dist);
+    t4_td_log(find(t4_td_dist < eps)) = log(eps);
+    t4_td_dist(find(t4_td_dist < eps)) = eps;
+    t4_td_entropy =  - t4_td_log'*t4_td_dist;
+    
+    %propagate
+    t4_prev_state = t4_next_state;
+    t4_prev_weights = t4_new_weights;
+    
+    %Choose the next camera to use
+    %use dynamics to predict next
+    t4_dyn_state = zeros(size(t4_prev_state));
+    t4_dyn_state(4,:) = t4_prev_state(end,:);
+    t4_dyn_state(5:6,:) = t4_theta_sigma .* randn(2,t4_no_particles);    
+    %predict next
+    t4_nxt_state = t4_prev_state + t4_dyn_state;
+    %check angle ranges
+    t4_nxt_state(4,:) = mod(t4_nxt_state(4,:),360);
+    t4_nxt_state(5,find(t4_nxt_state(5,:)>179)) = 179;
+    t4_nxt_state(5,find(t4_nxt_state(5,:)<1)) = 1;
+    t4_nxt_state(6,find(t4_nxt_state(6,:)<-179)) = -179;
+    t4_nxt_state(6,find(t4_nxt_state(6,:)>-1)) = -1;
+    %hallucinate measurements
+    t4_cam1_entropy = 0;
+    t4_cam2_entropy = 0;
+    t4_cam1_weights = t4_new_weights;
+    t4_cam2_weights = t4_new_weights;
+    %random sample 
+    rand_particles = randsample(1:t4_no_particles, t4_no_predicts);
+    for p=1:t4_no_predicts
+        t4_predict_state = t4_nxt_state(:,rand_particles(p));
+    %find new weights for particles by measurement
+    for m=1:t4_no_measures
+        t4_cam1_halluci = state2img( t4_predict_state, f1, 1, OCCLUDE_RADIUS, OCCLUDE_WIDTH, STICK_LEN, STICK_RATIOS,ARM_RATIOS, camera1_rot, cam1_to_world);
+        t4_cam2_halluci = state2img( t4_predict_state, f2, 1, OCCLUDE_RADIUS, OCCLUDE_WIDTH, STICK_LEN, STICK_RATIOS,ARM_RATIOS, camera2_rot, cam2_to_world);
+
+    for i=1:t4_no_particles
+        t4_cam1_weights(i) = similarity(t4_nxt_state(:,i), t4_cam1_halluci, f1, 16,...
+            OCCLUDE_RADIUS, OCCLUDE_WIDTH, STICK_LEN, STICK_RATIOS, ARM_RATIOS, camera1_rot, cam1_to_world);
+        t4_cam2_weights(i) = similarity(t4_nxt_state(:,i), t4_cam2_halluci, f2, 16,...
+            OCCLUDE_RADIUS, OCCLUDE_WIDTH, STICK_LEN, STICK_RATIOS, ARM_RATIOS, camera2_rot, cam2_to_world);
+        
+        if (t4_cam1_weights(i)==0 || t4_cam2_weights(i)==0) 
+            'Zero?';
+        end
+    end
+    
+    %parzen-window estimate
+    t4_theta_diff = t4_nxt_state(5,:) - t4_nxt_state(6,:);
+    [meh, t4_cam1_dist] = p_win(t4_theta_diff', t4_cam1_weights, 50, 0, 360);
+    [meh, t4_cam2_dist] = p_win(t4_theta_diff', t4_cam2_weights, 50, 0, 360);
+    %normalize
+    t4_cam1_dist = t4_cam1_dist./sum(t4_cam1_dist);
+    %Entropy Calculation
+    t4_cam1_log = log(t4_cam1_dist);
+    t4_cam1_log(find(t4_cam1_dist < eps)) = log(eps);
+    t4_cam1_dist(find(t4_cam1_dist < eps)) = eps;
+    t4_cam1_entropy =  t4_cam1_entropy - t4_cam1_log'*t4_cam1_dist;
+    %normalize
+    t4_cam2_dist = t4_cam2_dist./sum(t4_cam2_dist);
+    %Entropy Calculation
+    t4_cam2_log = log(t4_cam2_dist);
+    t4_cam2_log(find(t4_cam2_dist < eps)) = log(eps);
+    t4_cam2_dist(find(t4_cam2_dist < eps)) = eps;
+    t4_cam2_entropy =  t4_cam2_entropy - t4_cam2_log'*t4_cam2_dist;
+    
+    
+    end
+    end
+    %compare entropies to choose camera
+    t4_cam1_entropy = t4_cam1_entropy/(t4_no_predicts*t4_no_measures);
+    t4_cam2_entropy = t4_cam2_entropy/(t4_no_predicts*t4_no_measures);
+    if t4_cam_choice==1 && t4_cam1_entropy-t4_cam2_entropy>.5
+        t4_cam_choice=2;
+    elseif t4_cam_choice==2 && t4_cam2_entropy-t4_cam1_entropy>.5
+        t4_cam_choice=1;
+    end
         
     ground_truth=[ground_truth; theta(1)-theta(2)];
     error_t1 = abs(theta(1)-theta(2) - t1_angle_estimate);
     error_t2 = abs(theta(1)-theta(2) - t2_angle_estimate);
     error_t3 = abs(theta(1)-theta(2) - t3_angle_estimate);
+    error_t4 = abs(theta(1)-theta(2) - t4_angle_estimate);
     t1_estimates=[t1_estimates; t1_angle_estimate];
     t1_error = [t1_error error_t1];
     t2_estimates=[t2_estimates; t2_angle_estimate];
     t2_error = [t2_error error_t2];    
     t3_estimates=[t3_estimates; t3_angle_estimate];
     t3_error = [t3_error error_t3];
-    
+    t4_estimates=[t4_estimates; t4_angle_estimate];
+    t4_error = [t4_error error_t4];
     
     %more t1 - vars of interest
     t1_parz_guess = [t1_parz_guess; t1_td_guess]; 
@@ -479,6 +644,11 @@ for cur_frame=0:total_frame
     %more t3 - vars of interest
     t3_parz_guess = [t3_parz_guess; t3_td_guess]; 
     t3_parz_entrp = [t3_parz_entrp; t3_td_entropy];
+    
+    %more t4 - vars of interest
+    t4_parz_guess = [t4_parz_guess; t4_td_guess]; 
+    t4_parz_entrp = [t4_parz_entrp; t4_td_entropy];
+    t4_cam_choices = [t4_cam_choices; t4_cam_choice];
 
     
 end
