@@ -3,7 +3,7 @@ clear
 close all
 
 %initialize RNG
-rng(1,'twister');
+rng(30,'twister');
 visual=0;
 
 %constants
@@ -34,7 +34,7 @@ camera1_rot  = [1    0       0
                0 sind(-90)  cosd(-90)];           
                                                     
 cam1_to_world = [0 0 0]';
-camera1_noise_std = 1.;
+camera1_noise_std = 2.;
 camera1_occl = [];
 
 
@@ -53,7 +53,7 @@ camera2_rot  = [cosd(90) sind(90) 0;
                sind(90)     0           cosd(90)];
                         
 cam2_to_world = [5 -3 5]';
-camera2_noise_std = 1.;
+camera2_noise_std = 2.;
 camera2_occl = [];
 
 
@@ -81,7 +81,7 @@ lengths = STICK_LEN * [1; STICK_RATIOS(1); ARM_RATIOS(1)];
 %Trackers 1 & 2, particle filters on first and second camera views
 %state is (St-Endx, St-Endy, St-Endz, Phi, theta1, theta2, vel-phi)'
 %initialize part-filter
-t1_no_particles = 1000;
+t1_no_particles = 6000;
 t1_theta_sigma = 10;
 t1_prev_state = repmat([translation_s_w;phi;theta(1);theta(2);vel_stick_rotation(1)],1,t1_no_particles);
 
@@ -91,7 +91,7 @@ t1_prev_weights = 1/t1_no_particles * ones(t1_no_particles,1);
 t1_new_weights = zeros(size(t1_prev_weights));
 
 %Tracker2
-t2_no_particles = 1000;
+t2_no_particles = 6000;
 t2_theta_sigma = 10;
 t2_prev_state = repmat([translation_s_w;phi;theta(1);theta(2);vel_stick_rotation(1)],1,t1_no_particles);
 
@@ -102,7 +102,7 @@ t2_new_weights = zeros(size(t2_prev_weights));
 
 
 %Tracker3 - Multiplexer
-t3_no_particles = 1000;
+t3_no_particles = 6000;
 t3_theta_sigma = 10;
 t3_prev_state = repmat([translation_s_w;phi;theta(1);theta(2);vel_stick_rotation(1)],1,t1_no_particles);
 
@@ -112,7 +112,7 @@ t3_prev_weights = 1/t3_no_particles * ones(t3_no_particles,1);
 t3_new_weights = zeros(size(t3_prev_weights));
 
 %Tracker4 - Multiplexer
-t4_no_particles = 1000;
+t4_no_particles = 6000;
 t4_theta_sigma = 10;
 t4_prev_state = repmat([translation_s_w;phi;theta(1);theta(2);vel_stick_rotation(1)],1,t1_no_particles);
 t4_cam_choice = 1;
@@ -550,7 +550,7 @@ for cur_frame=0:total_frame
     t4_prev_state = t4_next_state;
     t4_prev_weights = t4_new_weights;
     
-    %Choose the next camera to use
+    %CHOOSE the next camera to use
     %use dynamics to predict next
     t4_dyn_state = zeros(size(t4_prev_state));
     t4_dyn_state(4,:) = t4_prev_state(end,:);
